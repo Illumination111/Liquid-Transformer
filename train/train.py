@@ -34,6 +34,7 @@ MODEL_FACTORIES: dict[str, Callable[..., nn.Module]] = {
     "deit-tiny": deit_tiny,
     "swin-tiny": swin_tiny,
 }
+MAX_EPOCHS = 100
 
 
 def parse_args() -> argparse.Namespace:
@@ -41,7 +42,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model", choices=MODEL_FACTORIES, required=True)
     parser.add_argument("--data-dir", type=Path, default=PROJECT_ROOT / "dataset")
     parser.add_argument("--log-dir", type=Path, default=PROJECT_ROOT / "train-log")
-    parser.add_argument("--epochs", type=int, default=300)
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        default=MAX_EPOCHS,
+        help=f"training epochs, 1-{MAX_EPOCHS} (default: {MAX_EPOCHS})",
+    )
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--lr", type=float, default=5e-4)
@@ -169,8 +175,10 @@ def save_checkpoint(
 
 def main() -> None:
     args = parse_args()
-    if args.epochs < 1 or args.batch_size < 1:
-        raise ValueError("epochs and batch-size must be positive")
+    if not 1 <= args.epochs <= MAX_EPOCHS:
+        raise ValueError(f"epochs must be between 1 and {MAX_EPOCHS}")
+    if args.batch_size < 1:
+        raise ValueError("batch-size must be positive")
     seed_everything(args.seed)
     device = torch.device(args.device)
     use_amp = device.type == "cuda" and not args.no_amp
