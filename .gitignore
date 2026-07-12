@@ -5,5 +5,6 @@ __pycache__/
 .venv/
 train-log/*.log
 train-log/*.pt
+train-log/*/
 !train-log/.gitkeep
 !train-log/README.md

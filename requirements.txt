@@ -1,3 +1,6 @@
 numpy>=1.26
 torch>=2.2
 torchvision>=0.17
+networkx>=3.2
+matplotlib>=3.8
+tensorboard>=2.16
