@@ -1,4 +1,4 @@
-name: liqiud
+name: liquid
 channels:
   - defaults
 dependencies:

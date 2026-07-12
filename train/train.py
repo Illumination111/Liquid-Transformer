@@ -58,11 +58,54 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--clip-grad", type=float, default=1.0)
     parser.add_argument("--drop-path", type=float, default=None)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument(
+        "--devices",
+        default="0,1" if torch.cuda.is_available() else "cpu",
+        help="CUDA device IDs, e.g. 0,1 (default: 0,1 when CUDA is available)",
+    )
+    parser.add_argument(
+        "--device",
+        default=None,
+        help="legacy single device override, e.g. cuda:0 or cpu",
+    )
     parser.add_argument("--no-amp", action="store_true", help="disable CUDA mixed precision")
     parser.add_argument("--no-download", action="store_true", help="do not download CIFAR-100")
     parser.add_argument("--resume", type=Path, default=None)
     return parser.parse_args()
+
+
+def resolve_devices(args: argparse.Namespace) -> tuple[torch.device, list[int]]:
+    """Return primary torch device and optional CUDA device-id list for DataParallel."""
+    if args.device is not None:
+        device = torch.device(args.device)
+        if device.type == "cuda":
+            index = device.index if device.index is not None else 0
+            return device, [index]
+        return device, []
+
+    raw = args.devices.strip()
+    if raw.lower() == "cpu":
+        return torch.device("cpu"), []
+
+    if not torch.cuda.is_available():
+        raise RuntimeError(
+            "CUDA is unavailable (is a CPU-only torch installed?). "
+            "Reinstall CUDA torch or pass --devices cpu / --device cpu."
+        )
+
+    gpu_ids = [int(item.strip()) for item in raw.split(",") if item.strip()]
+    if not gpu_ids:
+        raise ValueError("--devices must list at least one GPU id, e.g. 0,1")
+    largest = max(gpu_ids)
+    if torch.cuda.device_count() <= largest:
+        raise RuntimeError(
+            f"requested devices {gpu_ids}, but only found {torch.cuda.device_count()} GPUs"
+        )
+    return torch.device(f"cuda:{gpu_ids[0]}"), gpu_ids
+
+
+def unwrap_model(model: nn.Module) -> nn.Module:
+    return model.module if isinstance(model, nn.DataParallel) else model
 
 
 def seed_everything(seed: int) -> None:
@@ -163,7 +206,7 @@ def save_checkpoint(
     torch.save(
         {
             "epoch": epoch,
-            "model": model.state_dict(),
+            "model": unwrap_model(model).state_dict(),
             "optimizer": optimizer.state_dict(),
             "scheduler": scheduler.state_dict(),
             "best_accuracy": best_accuracy,
@@ -180,15 +223,17 @@ def main() -> None:
     if args.batch_size < 1:
         raise ValueError("batch-size must be positive")
     seed_everything(args.seed)
-    device = torch.device(args.device)
+    device, gpu_ids = resolve_devices(args)
     use_amp = device.type == "cuda" and not args.no_amp
+    if device.type == "cuda":
+        torch.cuda.set_device(device)
 
     args.log_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     run_name = f"{timestamp}-{args.model}-solid"
     logger = build_logger(args.log_dir / f"{run_name}.log")
     logger.info("configuration: %s", json.dumps(vars(args), default=str, sort_keys=True))
-    logger.info("device=%s amp=%s", device, use_amp)
+    logger.info("device=%s gpu_ids=%s amp=%s", device, gpu_ids, use_amp)
 
     train_loader, validation_loader = build_cifar100_loaders(
         args.data_dir,
@@ -200,7 +245,10 @@ def main() -> None:
     if args.drop_path is not None:
         model_kwargs["drop_path_rate"] = args.drop_path
     model = MODEL_FACTORIES[args.model](num_classes=100, **model_kwargs).to(device)
-    parameter_count = sum(parameter.numel() for parameter in model.parameters())
+    if len(gpu_ids) > 1:
+        model = nn.DataParallel(model, device_ids=gpu_ids, output_device=gpu_ids[0])
+        logger.info("DataParallel enabled on cuda:%s", gpu_ids)
+    parameter_count = sum(parameter.numel() for parameter in unwrap_model(model).parameters())
     logger.info("model=%s parameters=%.2fM", args.model, parameter_count / 1e6)
 
     criterion = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing)
@@ -216,7 +264,7 @@ def main() -> None:
 
     if args.resume is not None:
         checkpoint = torch.load(args.resume, map_location=device, weights_only=False)
-        model.load_state_dict(checkpoint["model"])
+        unwrap_model(model).load_state_dict(checkpoint["model"])
         optimizer.load_state_dict(checkpoint["optimizer"])
         scheduler.load_state_dict(checkpoint["scheduler"])
         start_epoch = int(checkpoint["epoch"]) + 1

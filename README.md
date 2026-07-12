@@ -46,39 +46,55 @@ small_world_score = mean(log(1 + sigma))
 
 ## 安装
 
-项目提供 Python 3.12 的 Conda 环境定义（环境名按要求为 `liqiud`）：
+项目提供 Python 3.12 的 Conda 环境定义，环境名为 `liquid`：
 
 ```bash
 conda env create -f environment.yml
-conda activate liqiud
+conda activate liquid
 ```
 
-也可以使用 Python 3.10 或更高版本创建虚拟环境，并按机器的 CUDA 环境从
-[PyTorch 官网](https://pytorch.org/get-started/locally/)安装 PyTorch：
+`requirements.txt` 默认可能装到 CPU 版 PyTorch。若要用 GPU，请改装 CUDA 版
+（Driver 支持 CUDA 12.8+ 时可用 `cu128`；也可按
+[PyTorch 官网](https://pytorch.org/get-started/locally/)选择对应索引）：
+
+```bash
+pip install --force-reinstall torch torchvision --index-url https://download.pytorch.org/whl/cu128
+```
+
+也可以使用 Python 3.10 或更高版本创建虚拟环境：
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+pip install --force-reinstall torch torchvision --index-url https://download.pytorch.org/whl/cu128
+```
+
+安装后可用下面命令确认 CUDA 可用：
+
+```bash
+python -c "import torch; print(torch.__version__, torch.cuda.is_available(), torch.cuda.device_count())"
 ```
 
 ## Solid 训练
 
-从项目根目录运行统一训练脚本。首次运行会把 CIFAR-100 自动下载到 `dataset/`：
+从项目根目录运行统一训练脚本。首次运行会把 CIFAR-100 自动下载到 `dataset/`。
+CUDA 可用时默认使用 `--devices 0,1`（`nn.DataParallel`）；无 CPU 调试可传
+`--devices cpu`，单卡可传 `--devices 0`。
 
 ```bash
 # Solid DeiT-Tiny；通过参数手动设定 epoch，范围为 1～100（省略时为 100）
-python train/train.py --model deit-tiny --epochs 100 --batch-size 128
+python train/train.py --model deit-tiny --epochs 100 --batch-size 128 --devices 0,1
 
 # Solid Swin-Tiny
-python train/train.py --model swin-tiny --epochs 100 --batch-size 128
+python train/train.py --model swin-tiny --epochs 100 --batch-size 128 --devices 0,1
 ```
 
 也可以使用快捷脚本，后面的参数会原样传给统一入口：
 
 ```bash
-bash train/train_deit_tiny.sh --epochs 100 --batch-size 128
-bash train/train_swin_tiny.sh --epochs 100 --batch-size 128
+bash train/train_deit_tiny.sh --epochs 100 --batch-size 128 --devices 0,1
+bash train/train_swin_tiny.sh --epochs 100 --batch-size 128 --devices 0,1
 ```
 
 默认训练策略为 AdamW、100 epochs、10 epochs warmup、cosine decay、label smoothing、
