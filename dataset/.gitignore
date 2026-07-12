@@ -1,0 +1,3 @@
+/cifar-100-python/*
+!/cifar-100-python/.gitkeep
+/cifar-100-python.tar.gz
