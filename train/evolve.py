@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Two-GPU NSGA-II evolution of liquid DeiT-Tiny and Swin-Tiny topologies."""
+"""Legacy NSGA-II entry point. New PPO/LIF work uses train/search.py."""
 
 from __future__ import annotations
 
@@ -42,7 +42,7 @@ from small_world import SmallWorldTopology  # noqa: E402
 from swin_tiny_liquid import swin_tiny_liquid, swin_topology_nodes  # noqa: E402
 from visualize import EvolutionRecorder  # noqa: E402
 
-from dataset.cifar100 import build_cifar100_evolution_loaders  # noqa: E402
+from dataset.cifar100 import DEFAULT_DATA_DIR, build_cifar100_evolution_loaders  # noqa: E402
 
 MAX_EPOCHS = 100
 
@@ -51,7 +51,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", choices=("deit-tiny", "swin-tiny"), required=True)
     parser.add_argument("--devices", default="0,1", help="comma-separated CUDA device IDs")
-    parser.add_argument("--data-dir", type=Path, default=PROJECT_ROOT / "dataset")
+    parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
     parser.add_argument("--log-dir", type=Path, default=PROJECT_ROOT / "train-log")
     parser.add_argument("--solid-checkpoint", type=Path)
     parser.add_argument("--batch-size", type=int, default=128)

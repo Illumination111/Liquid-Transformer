@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import torch
@@ -10,6 +11,7 @@ from torchvision import datasets, transforms
 
 CIFAR100_MEAN = (0.5071, 0.4867, 0.4408)
 CIFAR100_STD = (0.2675, 0.2565, 0.2761)
+DEFAULT_DATA_DIR = Path(os.environ.get("LIQUID_DATA_DIR", str(Path.home() / "dataset")))
 
 
 def build_cifar100_transforms() -> tuple[transforms.Compose, transforms.Compose]:
@@ -64,7 +66,7 @@ def build_cifar100_loaders(
     return train_loader, validation_loader
 
 
-def build_cifar100_evolution_loaders(
+def build_cifar100_search_loaders(
     data_dir: str | Path,
     batch_size: int = 128,
     num_workers: int = 4,
@@ -72,12 +74,8 @@ def build_cifar100_evolution_loaders(
     train_fraction: float = 1.0,
     seed: int = 42,
     download: bool = False,
-) -> tuple[DataLoader, DataLoader, DataLoader]:
-    """Build deterministic train/validation/test loaders for topology search.
-
-    NSGA-II evaluates candidates on a held-out part of the original training
-    set. The official test set remains untouched until final Pareto retraining.
-    """
+) -> tuple[DataLoader, DataLoader]:
+    """Build search train/validation loaders without opening the official test set."""
     if not 0.0 < train_fraction <= 1.0:
         raise ValueError("train_fraction must be in (0, 1]")
     if not 1 <= validation_size < 50_000:
@@ -91,16 +89,16 @@ def build_cifar100_evolution_loaders(
     clean = datasets.CIFAR100(
         root=data_dir, train=True, transform=validation_transform, download=download
     )
-    test_dataset = datasets.CIFAR100(
-        root=data_dir, train=False, transform=validation_transform, download=download
-    )
-
+    if validation_size >= len(augmented):
+        raise ValueError("validation_size must be smaller than the training dataset")
     generator = torch.Generator().manual_seed(seed)
     permutation = torch.randperm(len(augmented), generator=generator).tolist()
     validation_indices = permutation[:validation_size]
     available_train = permutation[validation_size:]
     train_count = max(1, round(len(available_train) * train_fraction))
     train_indices = available_train[:train_count]
+    if train_count < batch_size:
+        raise ValueError("training subset is smaller than batch-size with drop_last=True")
     options = _loader_options(batch_size, num_workers)
     train_loader = DataLoader(
         Subset(augmented, train_indices),
@@ -109,8 +107,29 @@ def build_cifar100_evolution_loaders(
         generator=torch.Generator().manual_seed(seed),
         **options,
     )
-    validation_loader = DataLoader(
-        Subset(clean, validation_indices), shuffle=False, **options
+    validation_loader = DataLoader(Subset(clean, validation_indices), shuffle=False, **options)
+    return train_loader, validation_loader
+
+
+def build_cifar100_test_loader(data_dir, batch_size=128, num_workers=4, download=False):
+    """Load the official test partition only for an explicitly requested final evaluation."""
+    _, transform = build_cifar100_transforms()
+    dataset = datasets.CIFAR100(root=data_dir, train=False, transform=transform, download=download)
+    return DataLoader(dataset, shuffle=False, **_loader_options(batch_size, num_workers))
+
+
+def build_cifar100_evolution_loaders(
+    data_dir,
+    batch_size=128,
+    num_workers=4,
+    validation_size=5000,
+    train_fraction=1.0,
+    seed=42,
+    download=False,
+):
+    """Compatibility wrapper for the legacy NSGA-II entry point."""
+    train, validation = build_cifar100_search_loaders(
+        data_dir, batch_size, num_workers, validation_size, train_fraction, seed, download
     )
-    test_loader = DataLoader(test_dataset, shuffle=False, **options)
-    return train_loader, validation_loader, test_loader
+    test = build_cifar100_test_loader(data_dir, batch_size, num_workers, download)
+    return train, validation, test
