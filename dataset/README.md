@@ -1,17 +1,17 @@
 # CIFAR-100 数据目录
 
-数据存放在仓库外。默认根目录为 `~/dataset`，本机为
-`/data/user25101366/dataset`；`LIQUID_DATA_DIR` 或 `--data-dir` 可覆盖默认值。
+数据存放在仓库外，默认根目录为 `~/dataset`；
+`LIQUID_DATA_DIR` 或 `--data-dir` 可覆盖默认值。
 在项目根目录使用 `liquid-transformer` Conda 环境独立下载与校验：
 
 ```bash
-python -m dataset.download --data-dir /data/user25101366/dataset
+python -m dataset.download
 ```
 
 解压后的数据位于：
 
 ```text
-/data/user25101366/dataset/cifar-100-python/
+~/dataset/cifar-100-python/
 ```
 
 原始数据约 169 MB，不纳入 Git 版本控制。若训练节点不能访问网络，可手动将官方

@@ -3,6 +3,7 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .venv/
+/docs/
 train-log/*.log
 train-log/*.pt
 train-log/*/
