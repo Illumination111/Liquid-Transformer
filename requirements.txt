@@ -1,5 +1,6 @@
 numpy>=1.26
 torch>=2.2
+spikingjelly==0.0.0.0.14
 torchvision>=0.17
 networkx>=3.2
 matplotlib>=3.8

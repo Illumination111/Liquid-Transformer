@@ -110,6 +110,8 @@ def test_synthetic_pipeline_updates_policy_and_roundtrips_checkpoint(tmp_path, m
     assert config["arguments"]["validation_size"] == 4
     checkpoint = torch.load(final["checkpoint"], weights_only=True)
     assert checkpoint["train_config"]["synthetic"]
+    assert checkpoint["train_config"]["spikingjelly_version"] == "0.0.0.0.14"
+    assert checkpoint["train_config"]["surrogate"] == "ATan"
     assert checkpoint["model_config"]["image_size"] == 32
     assert len((run_dir / "candidates.jsonl").read_text().splitlines()) == 3
     assert len((run_dir / "transitions.jsonl").read_text().splitlines()) == 2

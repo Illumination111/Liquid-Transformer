@@ -1,8 +1,10 @@
 # Liquid model architecture
 
 当前主线为 `SpikingDeiTTiny`（`deit_tiny_snn.py`）：只将 FFN 改为多时间步 LIF，
-Attention、输入投影与读出保留连续值。神经元实现位于 `lif.py`，膜电位在每次 forward
-内部初始化，通过时间反向传播训练；不在 batch 之间共享状态。
+Attention、输入投影与读出保留连续值。`lif.py` 封装 SpikingJelly 的
+`activation_based.neuron.LIFNode`，使用多步 `torch` 后端和 `ATan` 替代梯度，
+无需 CuPy。每次 forward 前后自动重置状态，膜电位不在 batch 之间共享。
+`lif_beta` 范围为 `(0, 1)`，对应 `tau = 1 / (1 - beta)`；输入不衰减，采用软复位。
 
 ```text
 static image → analog patches repeated over T steps

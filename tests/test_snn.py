@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 import torch
+from spikingjelly.activation_based import neuron, surrogate
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "model-liquid"))
@@ -25,7 +26,15 @@ def test_lif_integrates_leaks_resets_and_backpropagates_through_time():
     assert not lif(torch.zeros_like(currents)).any()  # no batch-to-batch membrane leakage
 
 
-@pytest.mark.parametrize("kwargs", [{"beta": 1}, {"threshold": 0}, {"slope": float("nan")}])
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"beta": 0},
+        {"beta": 1},
+        {"threshold": 0},
+        {"slope": float("nan")},
+    ],
+)
 def test_invalid_lif_configuration_is_rejected(kwargs):
     with pytest.raises(ValueError):
         MultiStepLIF(**kwargs)
@@ -42,7 +51,7 @@ def test_hybrid_deit_gradients_attention_and_state_isolation(time_steps):
         time_steps=time_steps,
         message_steps=1,
         drop_path_rate=0,
-    ).eval()
+    ).train()
     images = torch.randn(2, 3, 32, 32)
     output = model(images)
     assert output.shape == (2, 100)
@@ -90,3 +99,34 @@ def test_default_deit_backbone_shape():
     with torch.no_grad():
         logits = model(torch.randn(1, 3, 32, 32))
     assert logits.shape == (1, 100) and torch.isfinite(logits).all()
+
+
+def test_spikingjelly_backend_releases_state_without_breaking_pending_gradients():
+    lif = MultiStepLIF(beta=0.5, slope=5.0)
+    assert isinstance(lif.node, neuron.LIFNode)
+    assert isinstance(lif.node.surrogate_function, surrogate.ATan)
+    first = torch.full((4, 1), 0.6, requires_grad=True)
+    second = torch.full((2, 3), 0.7, requires_grad=True)
+    loss = lif(first).sum() + lif(second).sum()
+    assert lif.node.v == 0.0
+    assert not lif.state_dict()  # membrane is never serialized
+    loss.backward()
+    for inputs in (first, second):
+        assert torch.isfinite(inputs.grad).all() and inputs.grad.abs().sum() > 0
+    lif.eval()
+    with torch.no_grad():
+        assert lif(first).flatten().tolist() == [0.0, 0.0, 1.0, 0.0]
+        assert lif.node.v == 0.0
+
+
+def test_spikingjelly_state_is_reset_after_forward_failure(monkeypatch):
+    lif = MultiStepLIF()
+
+    def fail(currents):
+        lif.node.v = currents[0]
+        raise RuntimeError("simulated neuron failure")
+
+    monkeypatch.setattr(lif.node, "forward", fail)
+    with pytest.raises(RuntimeError, match="simulated neuron failure"):
+        lif(torch.ones(2, 1))
+    assert lif.node.v == 0.0

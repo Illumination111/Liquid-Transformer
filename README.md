@@ -6,7 +6,7 @@
 ## 特性
 
 - 保留 DeiT-Tiny 主干，支持原生 32×32 图像。
-- LIF FFN 支持替代梯度训练与可学习稀疏边权。
+- 基于 [SpikingJelly](https://github.com/fangwei123456/spikingjelly) 的 LIF FFN，支持替代梯度训练与可学习稀疏边权。
 - PPO 按层调整拓扑，保持图的连通性和边数。
 - 提供连续值 DeiT/Swin 基线、历史 NSGA-II 实现及合成数据检查。
 

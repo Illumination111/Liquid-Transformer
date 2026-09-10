@@ -10,6 +10,7 @@ import random
 import subprocess
 import sys
 from datetime import datetime
+from importlib.metadata import version
 from pathlib import Path
 
 import torch
@@ -51,9 +52,11 @@ def parse_args(argv=None):
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--workers", type=int, default=2)
     parser.add_argument("--time-steps", type=int, default=4)
-    parser.add_argument("--lif-beta", type=float, default=0.5)
+    parser.add_argument("--lif-beta", type=float, default=0.5, help="membrane decay in (0, 1)")
     parser.add_argument("--lif-threshold", type=float, default=1.0)
-    parser.add_argument("--surrogate-slope", type=float, default=5.0)
+    parser.add_argument(
+        "--surrogate-slope", type=float, default=5.0, help="SpikingJelly ATan surrogate alpha"
+    )
     parser.add_argument("--message-steps", type=int, default=2)
     parser.add_argument("--graph-degree", type=int, default=8)
     parser.add_argument("--path-samples", type=int, default=64)
@@ -99,7 +102,7 @@ def validate_args(args):
     for name in ("topology_weight", "entropy_coef", "weight_decay"):
         if not math.isfinite(getattr(args, name)) or getattr(args, name) < 0:
             raise ValueError(f"{name} must be finite and nonnegative")
-    if not 0 <= args.lif_beta < 1 or not 0 < args.train_fraction <= 1:
+    if not 0 < args.lif_beta < 1 or not 0 < args.train_fraction <= 1:
         raise ValueError("invalid lif_beta or train_fraction")
     if not 0 < args.clip_epsilon < 1 or not 0 <= args.label_smoothing < 1:
         raise ValueError("invalid clip_epsilon or label_smoothing")
@@ -176,6 +179,8 @@ def run(args):
         validation_size=args.validation_size,
         train_fraction=args.train_fraction,
         synthetic=args.smoke_test,
+        spikingjelly_version=version("spikingjelly"),
+        surrogate="ATan",
     )
 
     def loader_factory():
