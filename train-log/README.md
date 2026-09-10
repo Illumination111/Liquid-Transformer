@@ -1,7 +1,27 @@
 # 训练日志
 
-截至 2026-09-10，此工作副本中只有本说明与 `.gitkeep`，没有可核验的训练结果。
-根目录 [README](../README.md#现有实验结果与结论) 记录了结果状态与评估协议限制。
+当前没有真实 CIFAR-100 训练/搜索结果。功能检查只使用合成数据，不构成性能证据。
+环境和检查范围见 [验证记录](../docs/validation.md)。
+
+## 当前 PPO / LIF 记录
+
+新入口 `train/search.py` 默认创建 `*-deit-snn-ppo/`：
+
+- `config.json`：有效参数、模型/LIF 配置、代码版本与 dirty 标记、`synthetic` 标记；
+- `candidates.jsonl`：所有搜索候选，包括初始图、未入选候选、最佳验证轮和训练历史；
+- `transitions.jsonl`：观测、动作、奖励、iteration/step 与候选 ID；
+- `ppo.jsonl`：策略更新损失、价值损失、熵和平均奖励；
+- `policy.pt`：策略、优化器及策略 RNG 快照；当前无恢复搜索入口；
+- `selected.json`：质量分数最高候选及完整二值拓扑；
+- `final.json`：显式最终训练的验证/测试结果；
+- `checkpoints/final-best.pt`：按验证准确率选出的权重、拓扑与完整模型构建参数。
+
+PPO 记录中的 `accuracy` 为最佳验证轮准确率（%），`loss` 为同轮 loss。
+`test_accuracy` 只出现在显式最终评估的 `final.json`。
+`--smoke-test` 的产物均由有效配置及汇总文件中的 `synthetic: true` 标识。
+运行子目录与权重默认不入 Git。
+
+## 历史 solid / NSGA-II 记录
 
 训练日志命名格式为 `YYYYMMDD-HHMMSS-模型-solid.log`，例如：
 

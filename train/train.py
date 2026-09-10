@@ -28,7 +28,7 @@ for path in (PROJECT_ROOT, MODEL_DIR):
 from deit_tiny import deit_tiny  # noqa: E402
 from swin_tiny import swin_tiny  # noqa: E402
 
-from dataset.cifar100 import build_cifar100_loaders  # noqa: E402
+from dataset.cifar100 import DEFAULT_DATA_DIR, build_cifar100_loaders  # noqa: E402
 
 MODEL_FACTORIES: dict[str, Callable[..., nn.Module]] = {
     "deit-tiny": deit_tiny,
@@ -40,7 +40,7 @@ MAX_EPOCHS = 100
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", choices=MODEL_FACTORIES, required=True)
-    parser.add_argument("--data-dir", type=Path, default=PROJECT_ROOT / "dataset")
+    parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
     parser.add_argument("--log-dir", type=Path, default=PROJECT_ROOT / "train-log")
     parser.add_argument(
         "--epochs",
